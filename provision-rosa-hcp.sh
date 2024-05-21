@@ -14,6 +14,8 @@ Automation script to create Hosted Control Plane for JurongPort:
   --create-vpc          Create new VPC, subnets, NAT gateway
   --create-permission   Create new IAM roles and OIDC config
   --install-hcp         Install HCP cluster (Single AZ)
+  --create-admin        Create Cluster admin
+  --install-operators   Install GitOps, Tekton operators
 
 HELP
 }
@@ -157,12 +159,19 @@ install_hcp()
 	   --installer-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/${ACCOUNT_ROLES_PREFIX}-HCP-ROSA-Installer-Role \
            --support-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/${ACCOUNT_ROLES_PREFIX}-HCP-ROSA-Support-Role \
 	   --worker-iam-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/${ACCOUNT_ROLES_PREFIX}-HCP-ROSA-Worker-Role
-	echo "done."
+}
+
+create_admin()
+{
+	source $VARF
+	echo "Create cluster admin"
+        rosa create admin -c $CLUSTER_NAME
 }
 
 install_operators()
 {
-	oc create -f <<GITOPS
+        echo "Installing GitOps operators"
+	cat <<GITOPS | oc apply -f -
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
@@ -175,6 +184,7 @@ spec:
   source: redhat-operators 
   sourceNamespace: openshift-marketplace 
 GITOPS
+	echo "done."
 
 }
 
@@ -208,6 +218,22 @@ then
     $ tar zxvf rosa-linux.tar.gz
     $ sudo mv rosa /usr/local/bin
 ROSA
+  exit 1
+else
+  echo "Pass"
+fi
+
+echo -n "Checking for OC CLI... "
+if ! command -v oc &> /dev/null
+then
+  echo "Failed"
+  cat <<OC
+  oc cli not found !
+  Make sure these steps are followed:
+    $ wget https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/stable/openshift-client-linux.tar.gz
+    $ tar zxvf openshift-client-linux.tar.gz
+    $ sudo mv oc /usr/local/bin
+OC
   exit 1
 else
   echo "Pass"
@@ -274,6 +300,14 @@ while [[ -n "${1-}" ]]; do
       ;;
     --install-hcp)
       install_hcp
+      exit 0
+      ;;
+    --create-admin)
+      create_admin
+      exit 0
+      ;;
+    --install-operators)
+      install_operators
       exit 0
       ;;
     --help)
