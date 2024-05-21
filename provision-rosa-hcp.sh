@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+VARF=variables.txt
+
 print_help() {
   cat <<HELP
 
@@ -21,10 +23,7 @@ create_vpc()
 	#
         # Hardcoded parameters (Script build for re-provisioning using same CIDR/Cluster name)
         #
-        CLUSTER_NAME="jeretan"
-        VPC_CIDR=10.0.0.0/16
-        PUBLIC_CIDR_SUBNET=10.0.1.0/24
-        PRIVATE_CIDR_SUBNET=10.0.0.0/24
+	source $VARF
     
         # Create VPC
 	echo -n "Creating VPC..."
@@ -104,8 +103,8 @@ create_vpc()
 
 	echo "VPC Setup complete"
         echo "##############################################"
-        echo "export PUBLIC_SUBNET_ID=$PUBLIC_SUBNET_ID"
-        echo "export PRIVATE_SUBNET_ID=$PRIVATE_SUBNET_ID"
+        echo "PUBLIC_SUBNET_ID=$PUBLIC_SUBNET_ID"
+        echo "PRIVATE_SUBNET_ID=$PRIVATE_SUBNET_ID"
         echo "##############################################"
 }
 
@@ -114,8 +113,7 @@ create_permission()
 	#
 	# Hardcoded parameters (Script build for re-provisioning using same IAM ROLE and OIDC)
         #
-        ACCOUNT_ROLES_PREFIX=jeretan-hcp
-        OPERATOR_ROLES_PREFIX=jeretan-hcp
+        source $VARF
         AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
 
         echo -n "Creating Account ROLES..."
@@ -135,22 +133,49 @@ create_permission()
 
 	echo "Permission Setup complete"
         echo "##############################################"
-        echo "export PUBLIC_SUBNET_ID=$PUBLIC_SUBNET_ID"
-        echo "export PRIVATE_SUBNET_ID=$PRIVATE_SUBNET_ID"
+	echo "OIDC_ID=$OIDC_ID"
+	echo "AWS_ACCOUNT_ID=$AWS_ACCOUNT_ID"
+        echo "PUBLIC_SUBNET_ID=$PUBLIC_SUBNET_ID"
+        echo "PRIVATE_SUBNET_ID=$PRIVATE_SUBNET_ID"
         echo "##############################################"
 }
 
 install_hcp()
 {
+	#
+	# Hardcoded parameters (Script build for re-provisioning using same config)
+        #
+        source $VARF
 
-  echo "Installing ROSA HCP"
+        echo "Installing ROSA HCP"
+        rosa create cluster --sts --hosted-cp --mode=auto --yes \
+           --cluster-name=$CLUSTER_NAME \
+           --region=$REGION \
+           --subnet-ids=${PUBLIC_SUBNET_ID},${PRIVATE_SUBNET_ID} \
+           --oidc-config-id=$OIDC_ID \
+           --operator-roles-prefix $OPERATOR_ROLES_PREFIX \
+	   --installer-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/${ACCOUNT_ROLES_PREFIX}-HCP-ROSA-Installer-Role \
+           --support-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/${ACCOUNT_ROLES_PREFIX}-HCP-ROSA-Support-Role \
+	   --worker-iam-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/${ACCOUNT_ROLES_PREFIX}-HCP-ROSA-Worker-Role
+	echo "done."
+}
 
-  rosa create cluster --sts --hosted-cp --mode=auto \
-     --cluster-name=$CLUSTER_NAME \
-     --region=ap-southeast-1 \
-     --subnet-ids=$SUBNET_IDS \
-     --oidc-config-id=$OIDC_ID \
-     --operator-roles-prefix $OPERATOR_ROLES_PREFIX \
+install_operators()
+{
+	oc create -f <<GITOPS
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: openshift-gitops-operator
+  namespace: openshift-operators
+spec:
+  channel: latest 
+  installPlanApproval: Automatic
+  name: openshift-gitops-operator 
+  source: redhat-operators 
+  sourceNamespace: openshift-marketplace 
+GITOPS
+
 }
 
 #
@@ -225,16 +250,15 @@ else
 fi
 
 echo -n "Checking if you have variable file... "
-if [ ! -f variable.txt ]; then
-  echo "Variables file not found!"
+if [ ! -f $VARF ]; then
+  echo "$VARF not found!"
   exit 1
+else
+  echo "Pass"
 fi
 
 if [ $# -eq 0 ]; then
   print_help
-  exit 1
-elif [ $# -eq 2 ]; then
-  echo "Only 1 option can be selected"
   exit 1
 fi
 
@@ -244,8 +268,8 @@ while [[ -n "${1-}" ]]; do
       create_vpc
       exit 0
       ;;
-    --create-oidc)
-      create_oidc
+    --create-permission)
+      create_permission
       exit 0
       ;;
     --install-hcp)
