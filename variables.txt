@@ -1,0 +1,8 @@
+#
+# Hardcoded parameters (Script build for re-provisioning using same IAM ROLE,OIDC,clustername)
+#
+CLUSTER_NAME=jeretan-jp
+ACCOUNT_ROLES_PREFIX=jeretan-hcp
+OPERATOR_ROLES_PREFIX=jeretan-hcp
+AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query "Account" --output text)
+
