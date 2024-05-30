@@ -42,14 +42,14 @@ create_vpc()
 	echo -n "Creating public subnet..."
 	PUBLIC_SUBNET_ID=$(aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block $PUBLIC_CIDR_SUBNET --query Subnet.SubnetId --output text)
 
-	aws ec2 create-tags --resources $PUBLIC_SUBNET_ID --tags Key=Name,Value=$CLUSTER_NAME-public
+	aws ec2 create-tags --resources $PUBLIC_SUBNET_ID --tags Key=Name,Value=$CLUSTER_NAME-public Key=kubernetes.io/role/elb,Value=1
 	echo "done."
 
 	# Create private subnet
 	echo -n "Creating private subnet..."
 	PRIVATE_SUBNET_ID=$(aws ec2 create-subnet --vpc-id $VPC_ID --cidr-block $PRIVATE_CIDR_SUBNET --query Subnet.SubnetId --output text)
 
-	aws ec2 create-tags --resources $PRIVATE_SUBNET_ID --tags Key=Name,Value=$CLUSTER_NAME-private
+	aws ec2 create-tags --resources $PRIVATE_SUBNET_ID --tags Key=Name,Value=$CLUSTER_NAME-private Key=kubernetes.io/role/internal-elb,Value=1
 	echo "done."
 
 	# Create an internet gateway for outbound traffic and attach it to the VPC.
