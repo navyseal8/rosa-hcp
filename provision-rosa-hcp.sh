@@ -14,8 +14,8 @@ Automation script to create Hosted Control Plane for JurongPort:
   --create-vpc          Create new VPC, subnets, NAT gateway
   --create-permission   Create new IAM roles and OIDC config
   --install-hcp         Install HCP cluster (Single AZ)
+  --delete-hcp          Delete HCP cluster listed on variable.txt
   --create-admin        Create Cluster admin
-  --install-operators   Install GitOps, Tekton operators
 
 HELP
 }
@@ -161,6 +161,18 @@ install_hcp()
 	   --worker-iam-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/${ACCOUNT_ROLES_PREFIX}-HCP-ROSA-Worker-Role
 }
 
+delete_hcp()
+{
+	#
+	# Hardcoded parameters (Script build for re-provisioning using same config)
+        #
+        source $VARF
+
+        echo "Deleting ROSA HCP - $CLUSTER_NAME"
+        rosa delete cluster -c $CLUSTER_NAME 
+}
+
+
 create_admin()
 {
 	source $VARF
@@ -300,6 +312,10 @@ while [[ -n "${1-}" ]]; do
       ;;
     --install-hcp)
       install_hcp
+      exit 0
+      ;;
+    --delete-hcp)
+      delete_hcp
       exit 0
       ;;
     --create-admin)
